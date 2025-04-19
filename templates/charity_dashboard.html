@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+    <title>Charity Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
@@ -35,13 +35,43 @@
             {% endif %}
         {% endwith %}
 
-        <h1>Welcome to your Dashboard</h1>
-        <p>Your role: {{ user.role }}</p>
+        <h1>Charity Dashboard</h1>
 
-        {% if user.role == 'charity' %}
-            <div class="alert alert-info">
-                <p>Please visit the <a href="{{ url_for('dashboard') }}">Charity Dashboard</a> to manage your projects.</p>
+        <div class="row mb-4">
+            <div class="col">
+                <a href="{{ url_for('create_project') }}" class="btn btn-primary">Create New Project</a>
             </div>
+        </div>
+
+        <h2>Your Projects</h2>
+
+        {% if projects %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Project Name</th>
+                            <th>Description</th>
+                            <th>Total Budget</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for project in projects %}
+                            <tr>
+                                <td>{{ project.name }}</td>
+                                <td>{{ project.description }}</td>
+                                <td>${{ "%.2f"|format(project.total_budget) }}</td>
+                                <td>
+                                    <a href="{{ url_for('view_project', project_id=project.id) }}" class="btn btn-sm btn-info">View</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p>You haven't created any projects yet.</p>
         {% endif %}
     </div>
 
