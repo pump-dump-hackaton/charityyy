@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+    <h1>Welcome to Your Dashboard</h1>
+
+    <p>Hello, {{ user.email }}!</p>
+    <p>Your role: {{ user.role }}</p>
+
+    {% if user.role == 'donor' %}
+        <h2>Donor Dashboard</h2>
+        <!-- Donor-specific content -->
+    {% elif user.role == 'company' %}
+        <h2>Company Dashboard</h2>
+        <!-- Company-specific content -->
+    {% elif user.role == 'charity' %}
+        <h2>Charity Dashboard</h2>
+        <!-- Charity-specific content -->
+    {% endif %}
+
+    <a href="{{ url_for('logout') }}">Logout</a>
+</body>
+</html>

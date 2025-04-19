@@ -33,7 +33,7 @@ def register():
         email = request.form['email']
         role = request.form['role']  # donor, company, or charity
         password = request.form['password']
-        hashed_password = generate_password_hash(password, method='sha256')
+        hashed_password = generate_password_hash(password)
         user = User(email=email, role=role, password=hashed_password)
         db.session.add(user)
         db.session.commit()
