@@ -9,6 +9,12 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
+            {% if user.role == 'charity' and user.wallet_address %}
+                <div class="wallet-info">
+                    <h4>Public Wallet Address:</h4>
+                    <code>{{ user.wallet_address }}</code>
+                </div>
+            {% endif %}
             <a class="navbar-brand" href="#">Charity Platform</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
