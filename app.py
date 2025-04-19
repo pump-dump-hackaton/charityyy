@@ -1,9 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from models import db, User, Company, Project, ProjectCompany
+from models import db, User, Project, ProjectCompany
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
+from sqlalchemy import text
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'this-should-be-secret'
@@ -35,10 +36,29 @@ def index():
 def register():
     if request.method == 'POST':
         email = request.form['email']
+        name = request.form['name']
         role = request.form['role']  # donor, company, or charity
         password = request.form['password']
+
+        # Only get wallet_address if the user is a charity or company
+        wallet_address = None
+        if role in ['charity', 'company']:
+            wallet_address = request.form.get('wallet_address', '')
+
+        # Check if email already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            flash("Email already registered!")
+            return redirect(url_for('register'))
+
         hashed_password = generate_password_hash(password)
-        user = User(email=email, role=role, password=hashed_password)
+        user = User(
+            email=email,
+            name=name,
+            role=role,
+            password=hashed_password,
+            wallet_address=wallet_address
+        )
         db.session.add(user)
         db.session.commit()
         flash("Registered successfully!")
@@ -59,13 +79,35 @@ def login():
         return redirect(url_for('dashboard'))
     return render_template('login.html')
 
+@app.route('/charity/<int:charity_id>')
+def view_charity(charity_id):
+    charity = User.query.filter_by(id=charity_id, role='charity').first_or_404()
+    return render_template('charity_profile.html', charity=charity)
+
+@app.route('/api/charity/<int:charity_id>/wallet')
+def get_charity_wallet(charity_id):
+    charity = User.query.filter_by(id=charity_id, role='charity').first_or_404()
+    return jsonify({
+        'name': charity.name,
+        'wallet_address': charity.wallet_address
+    })
+
+
+# Update the dashboard route in app.py to redirect donors to the home page
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # Redirect donors to the home page
+    if current_user.role == 'donor':
+        return redirect(url_for('home'))
+
+    # For charities, show their projects
     if current_user.role == 'charity':
         projects = Project.query.filter_by(user_id=current_user.id).all()
         return render_template('charity_dashboard.html', user=current_user, projects=projects)
+
+    # For companies
     return render_template('dashboard.html', user=current_user)
 
 
@@ -83,7 +125,8 @@ def create_project():
         flash("Only charities can create projects!")
         return redirect(url_for('dashboard'))
 
-    companies = Company.query.all()
+    # Get all users with role='company'
+    companies = User.query.filter_by(role='company').all()
 
     if request.method == 'POST':
         name = request.form['name']
@@ -105,13 +148,13 @@ def create_project():
 
         # Create project-company relationships
         for item in company_data:
-            company_id = int(item['company_id'])
+            company_user_id = int(item['company_id'])
             percentage = float(item['percentage'])
             amount = (percentage / 100) * total_budget
 
             project_company = ProjectCompany(
                 project_id=new_project.id,
-                company_id=company_id,
+                company_user_id=company_user_id,
                 percentage=percentage,
                 amount=amount
             )
@@ -123,6 +166,19 @@ def create_project():
 
     return render_template('create_project.html', companies=companies)
 
+
+@app.route('/home')
+@login_required
+def home():
+    # Only donors can access this page
+    if current_user.role != 'donor':
+        flash("This page is only accessible to donors!")
+        return redirect(url_for('dashboard'))
+
+    # Get all projects
+    projects = Project.query.all()
+
+    return render_template('home.html', projects=projects)
 
 @app.route('/projects/<int:project_id>')
 @login_required
@@ -139,23 +195,52 @@ def view_project(project_id):
 @app.route('/api/companies')
 @login_required
 def get_companies():
-    companies = Company.query.all()
+    companies = User.query.filter_by(role='company').all()
     return jsonify([{'id': c.id, 'name': c.name} for c in companies])
 
+
+# Add this route to your app.py file
+
+@app.route('/project/<int:project_id>/donate', methods=['GET', 'POST'])
+@login_required
+def donate_project(project_id):
+    # Only donors can access this page
+    if current_user.role != 'donor':
+        flash("Only donors can make donations!")
+        return redirect(url_for('dashboard'))
+
+    project = Project.query.get_or_404(project_id)
+    charity = User.query.get(project.user_id)
+    project_companies = ProjectCompany.query.filter_by(project_id=project_id).all()
+
+    # Get company details for each project_company
+    companies = []
+    for pc in project_companies:
+        company = User.query.get(pc.company_user_id)
+        companies.append({
+            'name': company.name,
+            'wallet_address': company.wallet_address,
+            'percentage': pc.percentage,
+            'amount': pc.amount
+        })
+
+    if request.method == 'POST':
+        donor_wallet = request.form['donor_wallet']
+        amount = float(request.form['amount'])
+
+        # In a real application, you would process the crypto transaction here
+        # For now, we'll just show a success message
+
+        flash(f"Thank you for your donation of ${amount} to {project.name}!")
+        return redirect(url_for('home'))
+
+    return render_template('donate.html',
+                           project=project,
+                           charity=charity,
+                           companies=companies)
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-
-        # Add some sample companies if they don't exist
-        if not Company.query.first():
-            sample_companies = [
-                Company(name="Education First", description="Education focused charity"),
-                Company(name="Health Matters", description="Health focused charity"),
-                Company(name="Environmental Trust", description="Environmental focused charity"),
-                Company(name="Animal Welfare Group", description="Animal welfare focused charity")
-            ]
-            db.session.add_all(sample_companies)
-            db.session.commit()
 
     app.run(debug=True)

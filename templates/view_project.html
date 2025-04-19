@@ -68,7 +68,7 @@
                 <tbody>
                     {% for pc in project_companies %}
                         <tr>
-                            <td>{{ pc.company.name }}</td>
+                            <td>{{ pc.company_user.name }}</td>
                             <td>{{ "%.2f"|format(pc.percentage) }}%</td>
                             <td>${{ "%.2f"|format(pc.amount) }}</td>
                         </tr>
@@ -92,7 +92,7 @@
             // Prepare data for the chart
             const companyNames = [
                 {% for pc in project_companies %}
-                    "{{ pc.company.name }}"{% if not loop.last %},{% endif %}
+                    "{{ pc.company_user.name }}"{% if not loop.last %},{% endif %}
                 {% endfor %}
             ];
 
