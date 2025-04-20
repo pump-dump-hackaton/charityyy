@@ -1,0 +1,33 @@
+This dApp integrates a Flask-based frontend with Polkadot smart contracts to enable transparent, trackable donations. Users can register as donors, charities, or companies. Charities create projects and define how donations should be split among companies. Donors send contributions through the UI, and the funds are automatically distributed based on predefined percentages.
+
+Key Components:
+
+Flask + SQLAlchemy: Powers the web interface and handles user authentication, session management, and project data storage.
+
+Substrate SDK / py-substrate-interface: Used for deploying and interacting with custom Polkadot-based smart contracts. The deploy_proposal() and donate() functions use this SDK to instantiate contracts and transfer funds securely on-chain.
+
+Smart Contracts on Polkadot (Ink!): Contracts hold the total budget for a project and split donations proportionally across multiple recipients (companies). Only when a certain donation threshold is reached are the funds disbursed, ensuring conditional logic and transparency.
+
+Modular Payments System (payments.py): Handles key blockchain operations like:
+
+deploy_proposal: deploys a new smart contract with fund distribution logic.
+
+donate: sends a transaction to the smart contract with the donor’s funds.
+
+get_info: retrieves real-time on-chain data for display (e.g., funds raised).
+
+Security Considerations:
+
+Private keys are not stored—users must input them per transaction.
+
+Wallet addresses are tied to user accounts (charities and companies only).
+
+What Polkadot Made Possible:
+
+Multi-recipient payout logic with transparent smart contracts.
+
+On-chain condition enforcement for fund disbursement (e.g., only release funds once a goal is met).
+
+Low-cost and scalable interactions compared to Ethereum, ideal for a donation-based dApp with frequent microtransactions.
+
+Interoperability: Future integration with other parachains or ecosystems is feasible thanks to Polkadot's XCM (Cross-Consensus Messaging).
