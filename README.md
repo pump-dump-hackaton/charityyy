@@ -83,3 +83,7 @@ Use XCMP to bridge donation verification to other parachains that handle auditin
 Implement milestone-based release with oracle support for real-world event confirmation (e.g., supplier delivery receipts).
 
 Leverage ZK-based proofs or off-chain workers to check real-time charity progress and reflect it in contract state.
+
+
+VIDEO LINK
+https://youtu.be/9h3qZqezH3o
