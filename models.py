@@ -24,6 +24,7 @@ class Project(db.Model):
     description = db.Column(db.Text)
     total_budget = db.Column(db.Float)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    contract_address = db.Column(db.String(100))
 
     # Add relationships
     project_companies = db.relationship('ProjectCompany', backref='project', lazy=True)
@@ -46,7 +47,6 @@ class ProjectCompany(db.Model):
 class Donation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Float, nullable=False)
-    donor_wallet = db.Column(db.String(100), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Foreign keys

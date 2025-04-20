@@ -35,7 +35,7 @@ CONTRACT_CODE = "0x" + _contract_file["data"]["bytecode"]["object"]
 
 Expense = namedtuple('Expense', 'address amount')
 
-def deploy_proposal(expenses: list[Expense], public_key, private_key):
+def deploy_proposal(expenses, private_key):
     web3 = _connect_to_rpc()
 
     # Prepare account
@@ -58,7 +58,7 @@ def deploy_proposal(expenses: list[Expense], public_key, private_key):
     addresses = [expense.address for expense in expenses]
     amounts = [expense.amount for expense in expenses]
 
-    construct_txn = contract.constructor(addresses, amounts, public_key).build_transaction(transaction)
+    construct_txn = contract.constructor(addresses, amounts).build_transaction(transaction)
     signed_txn = web3.eth.account.sign_transaction(construct_txn, private_key=private_key)
 
     # Send transaction

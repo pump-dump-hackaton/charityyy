@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import json
 from sqlalchemy import text
 from datetime import datetime
+from payments import donate, deploy_proposal, get_info, Expense
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'this-should-be-secret'
@@ -184,10 +185,14 @@ def create_project():
         company_data = json.loads(request.form['company_data'])
 
         # Create project-company relationships
+        expenses = []
         for item in company_data:
             company_user_id = int(item['company_id'])
             percentage = float(item['percentage'])
-            amount = (percentage / 100) * total_budget
+            amount = int((percentage / 100) * total_budget)
+
+            address = User.query.get(company_user_id).wallet_address
+            expenses.append(Expense(address, amount))
 
             project_company = ProjectCompany(
                 project_id=new_project.id,
@@ -197,10 +202,15 @@ def create_project():
             )
             db.session.add(project_company)
 
-        db.session.commit()
+        try:
+            contract_address = deploy_proposal(expenses, private_key)
+            new_project.contract_address = contract_address
+        except Exception as e:
+            flash(f"Error uploading the smart contract!\n{e}")
+            db.session.rollback()
+            return render_template('create_project.html', companies=companies)
 
-        # Here you could use the private_key for initial blockchain setup if needed
-        # But don't store it in the database
+        db.session.commit()
 
         flash("Project created successfully!")
         return redirect(url_for('dashboard'))
@@ -275,15 +285,15 @@ def donate_project(project_id):
         })
 
     if request.method == 'POST':
-        donor_wallet = request.form['donor_wallet']
-        amount = float(request.form['amount'])
+        private_key = request.form['donor_wallet']
+        amount = int(request.form['amount'])
 
         # In a real application, you would process the crypto transaction here
+        donate(amount, project.contract_address, private_key)
 
         # Store the donation in the database
         new_donation = Donation(
             amount=amount,
-            donor_wallet=donor_wallet,
             donor_id=current_user.id,
             project_id=project_id,
             timestamp=datetime.utcnow()
@@ -294,10 +304,13 @@ def donate_project(project_id):
         flash(f"Thank you for your donation of ${amount} to {project.name}!")
         return redirect(url_for('donor_donations'))
 
+    _, funds_raised = get_info(project.contract_address)
+
     return render_template('donate.html',
                            project=project,
                            charity=charity,
-                           companies=companies)
+                           companies=companies,
+                           funds_raised=funds_raised)
 
 
 # New route for donor to view their donation history
