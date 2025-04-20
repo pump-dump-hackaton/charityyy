@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1>My Donations</h1>
+
+    {% if donation_details %}
+        <div class="row">
+            {% for detail in donation_details %}
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                {{ detail.project.name }}
+                                <span class="badge bg-primary float-end">${{ detail.donation.amount }}</span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">Donated on {{ detail.donation.timestamp.strftime('%B %d, %Y at %I:%M %p') }}</p>
+                            <p>{{ detail.project.description[:100] }}{% if detail.project.description|length > 100 %}...{% endif %}</p>
+
+                            <h6 class="mt-3">Your contribution is split as follows:</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Company</th>
+                                            <th>Percentage</th>
+                                            <th>Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for company in detail.company_splits %}
+                                            <tr>
+                                                <td>{{ company.name }}</td>
+                                                <td>{{ company.percentage }}%</td>
+                                                <td>${{ "%.2f"|format(company.amount) }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <a href="{{ url_for('view_project', project_id=detail.project.id) }}" class="btn btn-outline-primary btn-sm mt-2">View Project Details</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <p>You haven't made any donations yet.</p>
+            <a href="{{ url_for('home') }}" class="btn btn-primary">Browse Projects</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

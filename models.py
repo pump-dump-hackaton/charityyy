@@ -1,20 +1,21 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
+from datetime import datetime
 
-# Create the SQLAlchemy instance
 db = SQLAlchemy()
 
 
-class User(db.Model, UserMixin):
+class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), unique=True)
-    name = db.Column(db.String(100))
     password = db.Column(db.String(100))
-    role = db.Column(db.String(50))  # donor, company, or charity
-    wallet_address = db.Column(db.String(255))  # Added wallet_address field
+    name = db.Column(db.String(100))
+    role = db.Column(db.String(20))  # donor, company, or charity
+    wallet_address = db.Column(db.String(100))
 
-    # Define relationship to projects (for charities)
-    projects = db.relationship('Project', backref='owner', lazy=True)
+    # Add relationships
+    projects = db.relationship('Project', backref='charity', lazy=True)
+    donations = db.relationship('Donation', backref='donor', lazy=True)
 
 
 class Project(db.Model):
@@ -22,18 +23,32 @@ class Project(db.Model):
     name = db.Column(db.String(100))
     description = db.Column(db.Text)
     total_budget = db.Column(db.Float)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
-    # Define relationship to project_companies
-    companies = db.relationship('ProjectCompany', backref='project', lazy=True)
+    # Add relationships
+    project_companies = db.relationship('ProjectCompany', backref='project', lazy=True)
+    donations = db.relationship('Donation', backref='project', lazy=True)
 
 
 class ProjectCompany(db.Model):
+    __tablename__ = 'project_company'
+
     id = db.Column(db.Integer, primary_key=True)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
     company_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    percentage = db.Column(db.Float)
-    amount = db.Column(db.Float)
+    percentage = db.Column(db.Float, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
 
-    # Define relationship to company (User with role='company')
-    company = db.relationship('User', backref='project_companies')
+    # Add relationship to User model for the company
+    company_user = db.relationship('User', foreign_keys=[company_user_id])
+
+
+class Donation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    amount = db.Column(db.Float, nullable=False)
+    donor_wallet = db.Column(db.String(100), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Foreign keys
+    donor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)

@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from models import db, User, Project, ProjectCompany
+from models import db, User, Project, ProjectCompany, Donation
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
 from sqlalchemy import text
+from datetime import datetime
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'this-should-be-secret'
@@ -29,11 +30,19 @@ def load_user(user_id):
 
 @app.route('/')
 def index():
+    # Redirect to login page as the default landing page
     return redirect(url_for('login'))
 
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    # If user is already logged in, redirect to appropriate page
+    if current_user.is_authenticated:
+        if current_user.role == 'donor':
+            return redirect(url_for('home'))
+        else:
+            return redirect(url_for('dashboard'))
+
     if request.method == 'POST':
         email = request.form['email']
         name = request.form['name']
@@ -44,6 +53,9 @@ def register():
         wallet_address = None
         if role in ['charity', 'company']:
             wallet_address = request.form.get('wallet_address', '')
+            if not wallet_address:
+                flash("Wallet address is required for charities and companies.")
+                return redirect(url_for('register'))
 
         # Check if email already exists
         existing_user = User.query.filter_by(email=email).first()
@@ -61,28 +73,47 @@ def register():
         )
         db.session.add(user)
         db.session.commit()
-        flash("Registered successfully!")
+
+        flash("Registration successful! Please login.")
         return redirect(url_for('login'))
+
     return render_template('register.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # If user is already logged in, redirect to appropriate page
+    if current_user.is_authenticated:
+        if current_user.role == 'donor':
+            return redirect(url_for('home'))
+        else:
+            return redirect(url_for('dashboard'))
+
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
+
         if not user or not check_password_hash(user.password, password):
-            flash("Invalid credentials!")
+            flash("Invalid email or password.")
             return redirect(url_for('login'))
+
         login_user(user)
-        return redirect(url_for('dashboard'))
+
+        # Redirect based on user role
+        if user.role == 'donor':
+            return redirect(url_for('home'))
+        else:
+            return redirect(url_for('dashboard'))
+
     return render_template('login.html')
+
 
 @app.route('/charity/<int:charity_id>')
 def view_charity(charity_id):
     charity = User.query.filter_by(id=charity_id, role='charity').first_or_404()
     return render_template('charity_profile.html', charity=charity)
+
 
 @app.route('/api/charity/<int:charity_id>/wallet')
 def get_charity_wallet(charity_id):
@@ -92,8 +123,6 @@ def get_charity_wallet(charity_id):
         'wallet_address': charity.wallet_address
     })
 
-
-# Update the dashboard route in app.py to redirect donors to the home page
 
 @app.route('/dashboard')
 @login_required
@@ -133,6 +162,14 @@ def create_project():
         description = request.form['description']
         total_budget = float(request.form['total_budget'])
 
+        # Get private key but don't store it (will be used for transaction but not saved)
+        private_key = request.form.get('private_key', '')
+
+        # Validate private key format if needed (not stored in DB)
+        if not private_key:
+            flash("Private key is required!")
+            return render_template('create_project.html', companies=companies)
+
         # Create project
         new_project = Project(
             name=name,
@@ -161,6 +198,10 @@ def create_project():
             db.session.add(project_company)
 
         db.session.commit()
+
+        # Here you could use the private_key for initial blockchain setup if needed
+        # But don't store it in the database
+
         flash("Project created successfully!")
         return redirect(url_for('dashboard'))
 
@@ -180,6 +221,7 @@ def home():
 
     return render_template('home.html', projects=projects)
 
+
 @app.route('/projects/<int:project_id>')
 @login_required
 def view_project(project_id):
@@ -189,7 +231,17 @@ def view_project(project_id):
         return redirect(url_for('dashboard'))
 
     project_companies = ProjectCompany.query.filter_by(project_id=project_id).all()
-    return render_template('view_project.html', project=project, project_companies=project_companies)
+
+    # Create a dictionary to store company information
+    companies_dict = {}
+    for pc in project_companies:
+        company = User.query.get(pc.company_user_id)
+        companies_dict[pc.id] = company
+
+    return render_template('view_project.html',
+                           project=project,
+                           project_companies=project_companies,
+                           companies_dict=companies_dict)
 
 
 @app.route('/api/companies')
@@ -198,8 +250,6 @@ def get_companies():
     companies = User.query.filter_by(role='company').all()
     return jsonify([{'id': c.id, 'name': c.name} for c in companies])
 
-
-# Add this route to your app.py file
 
 @app.route('/project/<int:project_id>/donate', methods=['GET', 'POST'])
 @login_required
@@ -229,15 +279,64 @@ def donate_project(project_id):
         amount = float(request.form['amount'])
 
         # In a real application, you would process the crypto transaction here
-        # For now, we'll just show a success message
+
+        # Store the donation in the database
+        new_donation = Donation(
+            amount=amount,
+            donor_wallet=donor_wallet,
+            donor_id=current_user.id,
+            project_id=project_id,
+            timestamp=datetime.utcnow()
+        )
+        db.session.add(new_donation)
+        db.session.commit()
 
         flash(f"Thank you for your donation of ${amount} to {project.name}!")
-        return redirect(url_for('home'))
+        return redirect(url_for('donor_donations'))
 
     return render_template('donate.html',
                            project=project,
                            charity=charity,
                            companies=companies)
+
+
+# New route for donor to view their donation history
+@app.route('/my-donations')
+@login_required
+def donor_donations():
+    if current_user.role != 'donor':
+        flash("This page is only accessible to donors!")
+        return redirect(url_for('dashboard'))
+
+    # Get all donations made by the current donor
+    donations = Donation.query.filter_by(donor_id=current_user.id).order_by(Donation.timestamp.desc()).all()
+
+    # Create a list of donation details including project info and company splits
+    donation_details = []
+    for donation in donations:
+        project = Project.query.get(donation.project_id)
+        project_companies = ProjectCompany.query.filter_by(project_id=project.id).all()
+
+        # Calculate how donor's money is split among companies
+        company_splits = []
+        for pc in project_companies:
+            company = User.query.get(pc.company_user_id)
+            # Calculate how much of this donation goes to this company
+            company_amount = (pc.percentage / 100) * donation.amount
+            company_splits.append({
+                'name': company.name,
+                'percentage': pc.percentage,
+                'amount': company_amount
+            })
+
+        donation_details.append({
+            'donation': donation,
+            'project': project,
+            'company_splits': company_splits
+        })
+
+    return render_template('donor_donations.html', donation_details=donation_details)
+
 
 if __name__ == '__main__':
     with app.app_context():
