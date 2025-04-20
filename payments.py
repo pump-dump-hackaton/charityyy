@@ -4,21 +4,23 @@ import json
 
 PROVIDER_RPC = 'https://westend-asset-hub-eth-rpc.polkadot.io'
 
-def _load_abi(contract_name):
-    try:
-        with open(contract_name, 'r') as file:
-            return json.load(file)
-    except Exception as error:
-        print(f"❌ Could not find ABI for contract {contract_name}: {error}")
-        raise error
+_contract_file = json.load(open("contract/proposal.json", 'r'))
 
-def _load_bytecode(contract_name):
-    try:
-        with open(contract_name, 'rb') as file:
-            return '0x' + file.read().hex()
-    except Exception as error:
-        print(f"❌ Could not find bytecode for contract {contract_name}: {error}")
-        raise error
+# def _load_abi(contract_name):
+#     try:
+#         with open(contract_name, 'r') as file:
+#             return json.load(file)
+#     except Exception as error:
+#         print(f"❌ Could not find ABI for contract {contract_name}: {error}")
+#         raise error
+
+# def _load_bytecode(contract_name):
+#     try:
+#         with open(contract_name, 'rb') as file:
+#             return '0x' + file.read().hex()
+#     except Exception as error:
+#         print(f"❌ Could not find bytecode for contract {contract_name}: {error}")
+#         raise error
 
 def _connect_to_rpc():
     try:
@@ -28,8 +30,8 @@ def _connect_to_rpc():
         print("Couldn't connect to the PRC: " + e)
         raise Exception("Couldn't connect to RPC")
 
-CONTRACT_ABI = _load_abi("contract/proposal.json")
-CONTRACT_CODE = _load_bytecode("contract/proposal.polkavm")
+CONTRACT_ABI = _contract_file["abi"]
+CONTRACT_CODE = "0x" + _contract_file["data"]["bytecode"]["object"]
 
 Expense = namedtuple('Expense', 'address amount')
 
@@ -85,9 +87,10 @@ def donate(amount, contract_address, private_key):
     nonce = web3.eth.get_transaction_count(account.address)
 
     # Prepare transaction
-    transaction = contract.functions.donate(amount).build_transaction({
+    transaction = contract.functions.donate().build_transaction({
         'from': account.address,
-        'nonce': nonce
+        'nonce': nonce,
+        'value': amount
     })
 
     # Sign transaction
@@ -98,16 +101,14 @@ def donate(amount, contract_address, private_key):
     print(f"Transaction hash: {tx_hash.hex()}")
 
     # Wait for receipt
-    receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
-
-    return receipt
+    # receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
 
 def get_info(contract_address):
     web3 = _connect_to_rpc()
 
     # Create contract instance
     contract = web3.eth.contract(address=contract_address, abi=CONTRACT_ABI)
-    expenses = contract.functions.expenses().call()
+    expenses = contract.functions.expenses(0).call()
     funds_raised = contract.functions.funds_raised().call()
 
     return expenses, funds_raised
