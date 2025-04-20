@@ -1,2 +1,0 @@
-# CHARITYYY!!!
-edited by devraj
